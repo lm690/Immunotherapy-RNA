@@ -1,0 +1,29 @@
+#!/bin/bash 
+#SBATCH -A Research_Project-MRC164847 # research project to submit under. 
+#SBATCH --export=ALL # export all environment variables to the batch job. 
+#SBATCH -D . # set working directory to . 
+#SBATCH -p mrcq # submit to the parallel test queue 
+#SBATCH --time=48:00:00 # Maximum wall time for the job. 
+#SBATCH --nodes=1 # specify number of nodes. 
+#SBATCH --ntasks-per-node=16 # specify number of processors. 
+#SBATCH --mail-type=END # send email at job completion 
+#SBATCH --mail-user=lm690@exeter.ac.uk # email address 
+#SBATCH --job-name=calculate_tin
+
+module load RSeQC
+
+# Move to output folder
+cd /lustre/projects/Research_Project-T111004/Lachlan/TIN/Results
+
+# Folder containing Reference Genome
+RefDir=/lustre/projects/Research_Project-T111004/Lachlan/TIN
+
+# Folder containing BAM files
+RawDir=/lustre/projects/Research_Project-T111004/Lachlan/TIN/BAM
+
+
+for i in  ${RawDir}/*.bam
+do
+
+tin.py -i ${i}, -r ${RefDir}/gencode.v38.basic.bed
+done
