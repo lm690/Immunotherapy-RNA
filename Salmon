@@ -30,6 +30,11 @@ salmon index -t ${OutDir}/${fa_file}  \
 
 echo "Indexing process has been done!"
 
+
+##################
+## Salmon Quant ##
+##################
+
 #!/bin/bash 
 #SBATCH -A Research_Project-MRC164847 # research project to submit under. 
 #SBATCH --export=ALL # export all environment variables to the batch job. 
