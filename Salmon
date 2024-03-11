@@ -1,0 +1,27 @@
+#!/bin/bash
+#SBATCH -A Research_Project-MRC164847 # research project to submit under.
+#SBATCH --export=ALL # export all environment variables to the batch job.
+#SBATCH -D . # set working directory to .
+#SBATCH -p mrcq # submit to the parallel test queue
+#SBATCH --time=5:00:00 # Maximum wall time for the job
+#SBATCH --nodes=1 # specify number of nodes.
+#SBATCH --ntasks-per-node=16 # specify number of processors.
+#SBATCH --mail-type=END # send email at job completion
+#SBATCH --mail-user=lm690@exeter.ac.uk # email address
+#SBATCH --job-name=SalmonIndex
+
+
+OutDir=/lustre/projects/Research_Project-T111004/Lachlan/Salmon_v43
+fa_file=gentrome.fa.gz
+
+module load Salmon
+
+#step1: genome indexing
+
+salmon index -t ${OutDir}/${fa_file}  \
+	-i ${OutDir}/gencode.v43.transcripts_index \
+	--decoys ${OutDir}/decoys.txt -p 8 --gencode
+
+
+
+echo "Indexing process has been done!"
