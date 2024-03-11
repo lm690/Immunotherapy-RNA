@@ -1,0 +1,221 @@
+###########################
+##Gunzip Annotation File ##
+###########################
+
+gunzip gencode.v43.primary_assembly.annotation.gtf.gz
+
+#or
+
+gunzip /lustre/projects/Research_Project-T111004/Lachlan/TIN_v43/*.gz
+
+
+######################
+## Index Using STAR ##
+######################
+
+#!/bin/bash
+#SBATCH -A Research_Project-MRC164847 # research project to submit under.
+#SBATCH --export=ALL # export all environment variables to the batch job.
+#SBATCH -D . # set working directory to .
+#SBATCH -p mrcq # submit to the parallel test queue
+#SBATCH --time=72:00:00 # Maximum wall time for the job
+#SBATCH --nodes=1 # specify number of nodes.
+#SBATCH --ntasks-per-node=16 # specify number of processors.
+#SBATCH --mail-type=END # send email at job completion
+#SBATCH --mail-user=lm690@exeter.ac.uk # email address
+#SBATCH --job-name=index_STAR
+
+# Move to folder containg reference genome
+cd /lustre/projects/Research_Project-T111004/Lachlan/TIN_v43
+
+# Reference genome indexing
+STAR --runThreadN 16 \
+--runMode genomeGenerate \
+--genomeDir genomeDir \
+--genomeFastaFiles /lustre/projects/Research_Project-T111004/Lachlan/TIN_v43/GRCh38.primary_assembly.genome.fa \
+--sjdbGTFfile /lustre/projects/Research_Project-T111004/Lachlan/TIN_v43/gencode.v43.primary_assembly.annotation.gtf \
+--sjdbOverhang 99
+
+
+######################
+## Convert to BED file ##
+######################
+
+rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64.v369/ ./
+
+./gff3ToGenePred gencode.v43.primary_assembly.annotation.gff3 gencode.v43.primary.genePred
+./genePredToBed gencode.v43.primary.genePred gencode.v43.primary.bed
+
+
+###########################
+## Create FIle List ##
+###########################
+
+#!/bin/bash
+#SBATCH -A Research_Project-MRC164847 # research project to submit under.
+#SBATCH --export=ALL # export all environment variables to the batch job.
+#SBATCH -D . # set working directory to .
+#SBATCH -p mrcq # submit to the parallel test queue
+#SBATCH --time=72:00:00 # Maximum wall time for the job
+#SBATCH --nodes=1 # specify number of nodes.
+#SBATCH --ntasks-per-node=16 # specify number of processors.
+#SBATCH --mail-type=END # send email at job completion
+#SBATCH --mail-user=lm690@exeter.ac.uk # email address
+#SBATCH --job-name=files
+
+directory=/lustre/projects/Research_Project-T111004/Lachlan/11_fastp_trimmed
+output_file="prefix_list.txt"
+
+# Navigate to the directory
+cd "$directory" || exit
+
+# Loop through each file
+for file in *_001_fastp.fastq.gz; do
+  # Remove the suffix from the filename
+  prefix="${file%%_001_fastp.fastq.gz}"
+  # Write the prefix to the output file
+  echo "$prefix" >> "$output_file"
+done
+
+
+###########################
+##Gunzip Annotation File ##
+###########################
+
+#!/bin/bash
+#SBATCH -A Research_Project-MRC164847 # research project to submit under.
+#SBATCH --export=ALL # export all environment variables to the batch job.
+#SBATCH -D . # set working directory to .
+#SBATCH -p mrcq # submit to the parallel test queue
+#SBATCH --time=72:00:00 # Maximum wall time for the job
+#SBATCH --nodes=1 # specify number of nodes.
+#SBATCH --ntasks-per-node=16 # specify number of processors.
+#SBATCH --mail-type=END # send email at job completion
+#SBATCH --mail-user=lm690@exeter.ac.uk # email address
+#SBATCH --job-name=directories
+
+BAMDir="/lustre/projects/Research_Project-T111004/Lachlan/TIN_v43/BAM"
+sampleFile="/lustre/projects/Research_Project-T111004/Lachlan/TIN_v43/prefix_list.txt"
+
+while read -r sample
+do
+  sampleDir="${BAMDir}/${sample}"
+  mkdir -p "$sampleDir"
+done < "$sampleFile"
+
+
+###########################
+## Convert FastQ File ##
+###########################
+
+#!/bin/bash
+#SBATCH -A Research_Project-MRC164847 # research project to submit under.
+#SBATCH --export=ALL # export all environment variables to the batch job.
+#SBATCH -D . # set working directory to .
+#SBATCH -p mrcq # submit to the parallel test queue
+#SBATCH --time=72:00:00 # Maximum wall time for the job
+#SBATCH --nodes=1 # specify number of nodes.
+#SBATCH --ntasks-per-node=16 # specify number of processors.
+#SBATCH --mail-type=END # send email at job completion
+#SBATCH --mail-user=lm690@exeter.ac.uk # email address
+#SBATCH --job-name=convertFastqBam
+
+# Directory in which the data are processed
+ProcessDir=/lustre/projects/Research_Project-T111004/Lachlan/TIN_v43/BAM_Cb
+
+# Directory containing indexed genome
+RefDir=/lustre/projects/Research_Project-T111004/Lachlan/TIN_v43/genomeDir
+
+# Output directory
+OutDirBAM=/lustre/projects/Research_Project-T111004/Lachlan/TIN_v43/BAI_Imm
+
+# Directory coontaining fastq files
+RawDir=/lustre/projects/Research_Project-T111004/Lachlan/fastp_trimmed
+
+
+cd $ProcessDir
+module load STAR
+
+for i in  ${RawDir}/*R1*
+do
+
+sample=$i 
+stem=${sample::-19}
+outBAM=${OutDirBAM}/${stem:67}
+
+
+STAR --genomeDir $RefDir  \
+--runThreadN 16 \
+--readFilesIn ${stem}_R1_001_fastp.fastq ${stem}_R2_001_fastp.fastq \
+--outFileNamePrefix $outBAM \
+--outSAMtype BAM SortedByCoordinate
+ 
+inBAMindex=${outBAM}Aligned.sortedByCoord.out
+	
+# Index the BAM file.
+samtools index $inBAMindex.bam
+
+#Generate an alignment report.
+samtools flagstat $inBAMindex.bam > alignment-report.txt	
+done
+
+
+echo "Conversion processes have been done!" 
+
+
+###########################
+## Convert gff3 to BED ##
+###########################
+
+#!/bin/bash
+#SBATCH -A Research_Project-MRC164847 # research project to submit under.
+#SBATCH --export=ALL # export all environment variables to the batch job.
+#SBATCH -D . # set working directory to .
+#SBATCH -p mrcq # submit to the parallel test queue
+#SBATCH --time=72:00:00 # Maximum wall time for the job
+#SBATCH --nodes=1 # specify number of nodes.
+#SBATCH --ntasks-per-node=16 # specify number of processors.
+#SBATCH --mail-type=END # send email at job completion
+#SBATCH --mail-user=lm690@exeter.ac.uk # email address
+#SBATCH --job-name=gff2bed_STAR
+
+cd /lustre/projects/Research_Project-T111004/Lachlan/TIN_v43
+
+# convert reference genome from gff to bed
+gff2bed < gencode.v43.primary_assembly.annotation.gff3 > gencode.v43.primary_assembly.annotation.bed
+
+
+
+###########################
+## Calculate TIN ##
+###########################
+
+#!/bin/bash 
+#SBATCH -A Research_Project-MRC164847 # research project to submit under. 
+#SBATCH --export=ALL # export all environment variables to the batch job. 
+#SBATCH -D . # set working directory to . 
+#SBATCH -p mrcq # submit to the parallel test queue 
+#SBATCH --time=48:00:00 # Maximum wall time for the job. 
+#SBATCH --nodes=1 # specify number of nodes. 
+#SBATCH --ntasks-per-node=16 # specify number of processors. 
+#SBATCH --mail-type=END # send email at job completion 
+#SBATCH --mail-user=lm690@exeter.ac.uk # email address 
+#SBATCH --job-name=calculate_tin
+
+module load RSeQC
+
+# Move to output folder
+cd /lustre/projects/Research_Project-T111004/Lachlan/TIN_v43/Results7
+
+# Folder containing Reference Genome
+RefDir=/lustre/projects/Research_Project-T111004/Lachlan/TIN_v43
+
+# Folder containing BAM files
+RawDir=/lustre/projects/Research_Project-T111004/Lachlan/TIN_v43/TIN7
+
+
+for i in  ${RawDir}/*.bam
+do
+
+tin.py -i ${i}, -r ${RefDir}/gencode.v43.primary.bed
+done
