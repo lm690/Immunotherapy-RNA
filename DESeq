@@ -10,10 +10,11 @@ setwd("/mnt/data1/Lachlan/Infection_Immunisation/RNA/RNA_seq_analysis/Post_Salmo
 colData <- read.csv("Imm_RNA_Pheno.csv",row.names=1)
 
 ##### Import quantified transcripts from quant.sf
-setwd("/mnt/data1/Lachlan/Infection_Immunisation/RNA/RNA_seq_analysis/RNA_seq_quantified")
-dir<-"/mnt/data1/Lachlan/Infection_Immunisation/RNA/RNA_seq_analysis/RNA_seq_quantified"
+setwd("/mnt/data1/Lachlan/Infection_Immunisation/RNA/RNA_seq_analysis/out")
+dir<-"/mnt/data1/Lachlan/Infection_Immunisation/RNA/RNA_seq_analysis/out"
 quant_files <- list.files(dir, pattern = 'quant.genes.sf', recursive = TRUE, full.names = TRUE)
-separate_counts <- lapply(quant_files, read.table)
+separate_counts <- lapply(quant_files, read.table, header=T)
+setwd("/mnt/data1/Lachlan/Infection_Immunisation/RNA/RNA_seq_analysis/out/rimmed")
 dir_names <- list.files()
 indices <- grep("10570", dir_names)
 dir_names<-dir_names[indices]
@@ -87,7 +88,7 @@ tin_df$Bam_file <- substr(tin_df$Bam_file, 2, nchar(tin_df$Bam_file))
 tin_df <- tin_df[!grepl("cb", tin_df$Bam_file), , drop = FALSE]
 rownames(tin_df)<-tin_df$Bam_file
 
-pheno$Tin<-tin_df$TIN.median.
+pheno$Tin<-tin_df$TIN.median
 
 ##### Counts normalization with cpm and log2 ##### 
 
@@ -95,6 +96,7 @@ library(edgeR)
 
 keep = edgeR::filterByExpr(count_df_meta,min.count = 10, min.prop = 0.8)
 filt_count_df_meta <- count_df_meta[keep,]
+write.csv(filt_count_df_meta,file="counts_filt.csv")
 
 dge <- DGEList(filt_count_df_meta)
 dge <- calcNormFactors(dge,method =c("TMM"))
@@ -110,20 +112,20 @@ load("norm.RData")
 write.csv(cpm,file="cpm.csv")
 write.table(cpm,file="cpm.txt",row.names=T,sep="\t",quote=F)
 
-#### Plot distribution density ##### 
-png("density_plot.png")
+#### Plot distribution density #####
+tiff("density_plot.tiff",units="in", width=5, height=4, res=300, compression = 'lzw')
 plot(density(log2.cpm))
 dev.off()
 
 #### Cybersort Results
-cyber<-read.csv("cibersore_results_CSH_ref.csv",row.names=1)
+cyber<-read.csv("Nature_cibersort_results.csv",row.names=1)
 
 ##### Hierachical clustering #####
 library(WGCNA)
 
 sampleTree = hclust(dist(t(log2.cpm)), method = "average")
 
-png("Hierarchy_Imm.png")
+tiff("Hierarchy_Imm.tiff",units="in", width=5, height=4, res=300, compression = 'lzw')
 par(cex = 0.5);
 par(mar = c(0,4,2,0))
 plot(sampleTree, main = "Sample clustering", sub="", xlab="", cex.lab = 1,
@@ -151,6 +153,7 @@ impheno$Braak[is.na(impheno$Braak)]<-mean(impheno[which(impheno$AD==0),]$Braak,n
 
 colnames(impheno)
 pheno.rm<-impheno[,c(2:3,7:11,13:23,26,30:31)]
+colnames(pheno.rm)
 ##Keep only the required columns
 
 rownames(impheno)<-rownames(pheno)
@@ -160,7 +163,7 @@ pheno.rm$Gender <- factor(pheno.rm$Gender, levels = c("M", "F"), labels = c(1, 2
 pheno.rm$Gender<-as.numeric(pheno.rm$Gender)
 ##1 = F, 2 = M
 
-#Perform PCA
+#Perform PCA ##HERE##
 PCA<-prcomp(t(log2.cpm))
 ##Performs principle component analysis. t() transposes data frame/matrix
 
@@ -187,32 +190,46 @@ PCAsummary<-summary(PCA)
 View(PCAsummary$importance)
 
 #Visualise importance of first [25] PCs
-png("RNA_screeplotPCA.png")
-screeplot(PCA, type = "l", npcs = 25, main = "Screeplot of the first 25 PCs")
-abline(h = 21, col="red", lty=5)
-legend("topright", legend=c("Eigenvalue = 20"),
+tiff("RNA_screeplotPCA.tiff",units="in", width=5, height=5, res=300, compression = 'lzw')
+screeplot(PCA, type = "l", npcs = 20, main = "Screeplot of the first 20 PCs")
+abline(h = 100, col="red", lty=5)
+legend("topright", legend=c("Eigenvalue = 100"),
        col=c("red"), lty=5, cex=0.6)
 dev.off()
 ##screeplot() plots the variances against the number of the principal component
 
 ##Elbow (cut-off) at PC 15
 
-png("RNA_cumsumPCA.png")
+tiff("RNA_cumsumPCA.tiff",units="in", width=5, height=5, res=300, compression = 'lzw')
 cumpro <- cumsum(PCA$sdev^2 / sum(PCA$sdev^2))
 plot(cumpro[0:25], xlab = "PC #", ylab = "Amount of explained variance", main = "Cumulative variance plot")
-abline(v = 15, col="blue", lty=5)
-abline(h = 0.828070, col="blue", lty=5)
-legend("topleft", legend=c("Cut-off @ PC15"),
+abline(v = 16, col="blue", lty=5)
+abline(h = 0.87842, col="blue", lty=5)
+legend("topleft", legend=c("Cut-off @ PC18"),
        col=c("blue"), lty=5, cex=0.6)
 dev.off()
 ##cumsum() returns a vector whose elements are the cumulative sums of the elements of the argument
 
+c<-na.omit(correlationPCA$r)
+
 library(corrplot)
-png("RNA_PearsonsCor.png")
-corrplot(correlationPCA$r[,1:31],type="upper",method="square", tl.pos="td", tl.cex=0.5, tl.col="black", p.mat = correlationPCA$P, insig = "label_sig", sig.level = c(0.001, 0.01, 0.05), pch.cex = 0.9, pch.col = 'grey20')
+tiff("RNA_PearsonsCor.tiff",units="in", width=5, height=4, res=300, compression = 'lzw')
+corrplot(c[,1:31],type="upper",method="square", tl.pos="td", tl.cex=0.5, tl.col="black", p.mat = correlationPCA$P, insig = "label_sig", sig.level = c(0.05), pch.cex = 0.8, pch.col = 'white')
 dev.off()
 ##corrplot() from: corrplot - we can use this plot to visualise which covariates correlate with the first few principal components
 #Size,TIN,Age,Sex
+
+e <- ggplot(pheno.PCA, aes(PC1, PC2)) +
+  geom_point(aes(color = factor(Run))) +
+  stat_ellipse(type = "norm") +
+  theme_bw() +
+  geom_text(
+    label=rownames(pheno.PCA), 
+    nudge_x = 0.25, nudge_y = 0.25, 
+    check_overlap = T
+  )+
+  guides(color = guide_legend(override.aes = list(size = 1, fill = NA))) +
+  theme(legend.title = element_blank(), legend.text = element_text(size = 8))
 
 cyber.PCA<-merge(cyber, PCA.out, by="row.names")
 rownames(cyber.PCA)<-cyber.PCA$Row.names
@@ -224,9 +241,12 @@ correlationCyber<-rcorr(as.matrix(cyber.PCA), type="pearson")
 save(correlationCyber,file="correlationCyber.RData")
 load("correlationCyber.RData")
 
+c <- correlationCyber$r[-which(rownames(correlationCyber$r) == 'fpkm_fetal_replicating'), ]
+c <- c[,-which(colnames(c) == 'fpkm_fetal_replicating') ]
+
 library(corrplot)
-png("RNA_PearsonsCor_Cyber.png")
-corrplot(correlationCyber$r[,1:30],type="upper",method="square", tl.pos="td", tl.cex=0.5, tl.col="black", p.mat = correlationCyber$P, insig = "label_sig", sig.level = c(0.001, 0.01, 0.05), pch.cex = 0.9, pch.col = 'grey20')
+tiff("RNA_PearsonsCor_Cyber.tiff",units="in", width=5, height=4, res=300, compression = 'lzw')
+corrplot(c[,1:22],type="upper",method="square", tl.pos="td", tl.cex=0.5, tl.col="black", p.mat = correlationCyber$P, insig = "label_sig", sig.level = c(0.05), pch.cex = 0.8, pch.col = 'white')
 dev.off()
 
 #   #   #   #   #   #   #   #   #   #  #  #   #   #  #  #
@@ -238,6 +258,8 @@ dev.off()
 library(parallel)
 library(sva)
 
+load("RNA_PCA.RData")
+
 TIN_int <- quantile(pheno.PCA$`Tin`)
 pheno.PCA[which(pheno.PCA$`Tin` >= TIN_int[[1]] & pheno.PCA$`Tin` < TIN_int[[2]]), "TIN_quant"] <- 1
 pheno.PCA[which(pheno.PCA$`Tin` >= TIN_int[[2]] & pheno.PCA$`Tin` < TIN_int[[3]]), "TIN_quant"] <- 2
@@ -245,48 +267,86 @@ pheno.PCA[which(pheno.PCA$`Tin` >= TIN_int[[3]] & pheno.PCA$`Tin` < TIN_int[[4]]
 pheno.PCA[which(pheno.PCA$`Tin` >= TIN_int[[4]] & pheno.PCA$`Tin` <= TIN_int[[5]]), "TIN_quant"] <- 4
 pheno.PCA$TIN_quant <- as.factor(pheno.PCA$TIN_quant)
 
-lib.size_int <- quantile(pheno_compl$lib.size)
-pheno_compl[which(pheno_compl$lib.size >= lib.size_int[[1]] & pheno_compl$lib.size < lib.size_int[[2]]), "lib.size_quant"] <- 1
-pheno_compl[which(pheno_compl$lib.size >= lib.size_int[[2]] & pheno_compl$lib.size < lib.size_int[[3]]), "lib.size_quant"] <- 2
-pheno_compl[which(pheno_compl$lib.size >= lib.size_int[[3]] & pheno_compl$lib.size < lib.size_int[[4]]), "lib.size_quant"] <- 3
-pheno_compl[which(pheno_compl$lib.size >= lib.size_int[[4]] & pheno_compl$lib.size <= lib.size_int[[5]]), "lib.size_quant"] <- 4
-pheno_compl$lib.size_quant <- as.factor(pheno_compl$lib.size_quant)
+Size_int <- quantile(pheno.PCA$Size)
+pheno.PCA[which(pheno.PCA$Size >= Size_int[[1]] & pheno.PCA$Size < Size_int[[2]]), "Size_quant"] <- 1
+pheno.PCA[which(pheno.PCA$Size >= Size_int[[2]] & pheno.PCA$Size < Size_int[[3]]), "Size_quant"] <- 2
+pheno.PCA[which(pheno.PCA$Size >= Size_int[[3]] & pheno.PCA$Size < Size_int[[4]]), "Size_quant"] <- 3
+pheno.PCA[which(pheno.PCA$Size >= Size_int[[4]] & pheno.PCA$Size <= Size_int[[5]]), "Size_quant"] <- 4
+pheno.PCA$Size_quant <- as.factor(pheno.PCA$Size_quant)
 
 #Combat
-Tin<-pheno.PCA$TIN_quant
-combat<-ComBat(dat=log2.cpm,batch=Tin)
-
-Size<-as.numeric(pheno.PCA$Size)
-combat<-ComBat(dat=combat,batch=Size)
+Run<-(pheno.PCA$Run)
+combat<-ComBat(dat=log2.cpm,batch=Run)
 save(combat,file="Combat_Imm.RData")
+
+TIN<-(pheno.PCA$TIN_quant)
+combat<-ComBat(dat=combat,batch=TIN)
+save(combat,file="Combat_Imm.RData")
+
+#RIN, TIN, and size all correlate with eachother will just remove size
+
+
+############################
+####### PCA2 ###############
+############################
+
+
+PCA2<-prcomp(t(dat.rna))
+##Performs principle component analysis. t() transposes data frame/matrix
+
+PCA.out2<-PCA2$x
+##PCA$rotation gives the eigenvectors of the covariance matrix
+##PCA$x gives "rotated" principal components - i.e. data set projected on the principal components
+
+#Merge PCs with Pheno 
+pheno.PCA2<-merge(pheno.rm, PCA.out2, by="row.names")
+rownames(pheno.PCA2)<-pheno.PCA2$Row.names
+pheno.PCA2<-subset(pheno.PCA2,select=-c(Row.names))
+save(PCA2,pheno.PCA2,file="RNA_PCA2.RData")
+load("RNA_PCA2.RData")
+
+#Check for correlation between PCAs
+library(Hmisc)
+correlationPCA2<-rcorr(as.matrix(pheno.PCA2), type="pearson")
+save(correlationPCA2,file="correlationPCA2.RData")
+load("correlationPCA2.RData")
+##rcorr() from: Hmisc. Computes a matrix of Pearson's rank correlation coefficients for all possible pairs of columns of a matrix
+
+c<-na.omit(correlationPCA2$r)
+
+tiff("RNA_PearsonsCor2.tiff",units="in", width=5, height=4, res=300, compression = 'lzw')
+corrplot(c[,1:31],type="upper",method="square", tl.pos="td", tl.cex=0.5, tl.col="black", p.mat = correlationPCA2$P, insig = "label_sig", sig.level = c(0.05), pch.cex = 0.8, pch.col = 'white')
+dev.off()
+
+e <- ggplot(pheno.PCA2, aes(PC1, PC2)) +
+  geom_point(aes(color = factor(Run))) +
+  stat_ellipse(type = "norm") +
+  theme_bw() +
+  geom_text(
+    label=rownames(pheno.PCA), 
+    nudge_x = 0.25, nudge_y = 0.25, 
+    check_overlap = T
+  )+
+  guides(color = guide_legend(override.aes = list(size = 1, fill = NA))) +
+  theme(legend.title = element_blank(), legend.text = element_text(size = 8))
 
 ##Correct data by regressing out the effects of age, sex and cell proportions
 pheno.PCA <- cbind(pheno.PCA, cyber.PCA[, 1:17])
 save(pheno.PCA,file="pheno.PCA.RData")
-Sex<-pheno.PCA$Gender
-Age<-pheno.PCA$Age
-Brain_Bank_Bristol<-pheno.PCA$Brain_Bank_Bristol
-Brain_Bank_Edinburgh<-pheno.PCA$Brain_Bank_Edinburgh
-Brain_Bank_Newcastle<-pheno.PCA$Brain_Bank_Newcastle
-Brain_Bank_Southampton<-pheno.PCA$Brain_Bank_Southampton
-Fetal.Microglia<-pheno.PCA$Fetal.Microglia
-Fetal.IPC<-pheno.PCA$Fetal.IPC
-Fetal.Pericytes<-pheno.PCA$Fetal.Pericytes
-Fetal.OPC<-pheno.PCA$Fetal.OPC
-Fetal.Endothelial<-pheno.PCA$Fetal.Endothelial
-Fetal.Astrocytes<-pheno.PCA$Fetal.Astrocytes
-Fetal.Oligo<-pheno.PCA$Fetal.Oligo
-Fetal.Trans<-pheno.PCA$Fetal.Trans
-Fetal.NEP<-pheno.PCA$Fetal.NEP
-Astrocytes<-pheno.PCA$Astrocytes
-Endothelial<-pheno.PCA$Endothelial
-Fetal.quiescent<-pheno.PCA$Fetal.quiescent
-Fetal.replicating<-pheno.PCA$Fetal.replicating
-Microglia<-pheno.PCA$Microglia
-Neurons<-pheno.PCA$Neurons
-OPC<-pheno.PCA$OPC      
-Oligodendrocytes<-pheno.PCA$Oligodendrocytes
+Sex<-as.factor(pheno.PCA$Gender)
+Age<-as.numeric(pheno.PCA$Age)
+Astrocytes<-as.numeric(pheno.PCA$fpkm_astrocytes)
+Astrocytes<-as.numeric(pheno.PCA$fpkm_astrocytes)
+Endothelial<-as.numeric(pheno.PCA$fpkm_endothelial)
+Microglia<-as.numeric(pheno.PCA$fpkm_microglia)
+Neurons<-as.numeric(pheno.PCA$fpkm_neurons)
+Oligodendrocytes<-as.numeric(pheno.PCA$fpkm_oligodendrocytes)
+OPC<-as.numeric(pheno.PCA$fpkm_OPC)
+Tin<-as.numeric(pheno.PCA$Tin)
+Run<-as.factor(pheno.PCA$Run)
+Size<-as.numeric(pheno.PCA$Size)
 
+##Pull columns needed for correcting
 # Assuming cyber.PCA is your data frame
 column_names <- colnames(cyber.PCA)[1:17]
 # Create a string of column names separated by "+"
@@ -300,12 +360,13 @@ column_names_string <- paste(column_names, collapse = " , ")
 # Print or use the resulting string
 cat(column_names_string)
 
-fit<-lm(as.matrix(combat)[1,]~Sex+Age+Brain_Bank_Bristol+Brain_Bank_Edinburgh+Brain_Bank_Newcastle+Brain_Bank_Southampton+Fetal.Microglia + Fetal.IPC + Fetal.Pericytes + Fetal.OPC + Fetal.Endothelial + Fetal.Astrocytes + Fetal.Oligo + Fetal.Trans + Fetal.NEP + Astrocytes + Endothelial + Fetal.quiescent + Fetal.replicating + Microglia + Neurons + OPC + Oligodendrocytes)
+fit<-lm(as.matrix(log2.cpm)[1,]~Sex+Age+Size+Tin+ Run + Astrocytes + Endothelial + Microglia + Neurons + OPC + Oligodendrocytes)
 summary(fit)
+fit$residuals
 
-resid<-function(row,Sex,Age , Fetal.Microglia, Fetal.IPC , Fetal.Pericytes , Fetal.OPC , Fetal.Endothelial , Fetal.Astrocytes , Fetal.Oligo , Fetal.Trans , Fetal.NEP , Astrocytes , Endothelial , Fetal.quiescent , Fetal.replicating , Microglia , Neurons , OPC , Oligodendrocytes){
+resid<-function(row, Sex, Age, Size , Tin, Run  , Astrocytes , Endothelial , Microglia , Neurons , OPC , Oligodendrocytes){
   fit<-try(
-    lm(row~Sex+Age+Fetal.Microglia + Fetal.IPC + Fetal.Pericytes + Fetal.OPC + Fetal.Endothelial + Fetal.Astrocytes + Fetal.Oligo + Fetal.Trans + Fetal.NEP + Astrocytes + Endothelial + Fetal.quiescent + Fetal.replicating + Microglia + Neurons + OPC + Oligodendrocytes),
+    lm(row~Sex+Age+Size+Tin+ Run + Astrocytes + Endothelial + Microglia + Neurons + OPC + Oligodendrocytes),
     silent=TRUE
   )
   if(inherits(fit,'try-error')) return(rep(NA,length(Sex)))
@@ -319,7 +380,7 @@ resid<-function(row,Sex,Age , Fetal.Microglia, Fetal.IPC , Fetal.Pericytes , Fet
 cl<-makeCluster(32)
 
 dat.rna<-{
-  t(parApply(cl,combat,1,resid,Sex,Age,Fetal.Microglia , Fetal.IPC , Fetal.Pericytes , Fetal.OPC , Fetal.Endothelial , Fetal.Astrocytes , Fetal.Oligo , Fetal.Trans , Fetal.NEP , Astrocytes , Endothelial , Fetal.quiescent , Fetal.replicating , Microglia , Neurons , OPC , Oligodendrocytes))
+  t(parApply(cl,log2.cpm,1,resid,Sex, Age, Size , Tin, Run  , Astrocytes , Endothelial , Microglia , Neurons , OPC , Oligodendrocytes))
 }
 head(dat.rna[1:5,1:5])
 save(dat.rna,file="Imm_dat.rna.RData")
@@ -337,6 +398,13 @@ load("Imm_dat.rna.RData")
 #Load required packages
 library(sva)
 
+#Filter the data for cases that are AD
+pheno.AD<-pheno.PCA[which(pheno.PCA$AD==1),]
+intercept<-rownames(pheno.AD)
+dat.AD<-dat.rna[,which(colnames(dat.rna) %in% intercept)]
+save(dat.AD,file="ADOnly_rna.dat.RData")
+load("ADOnly_rna.dat.RData")
+
 #Create model matrices
 mod<-model.matrix( ~ factor(Immunised),data=pheno.AD) ##Creates a design matrix using the different levels of each factor
 
@@ -348,7 +416,7 @@ mydf<-na.omit(dat.AD)
 
 #Perform SVA
 sva<-sva::sva(dat = as.matrix(mydf), mod = mod, mod0 = mod0) ##Perform Surrogate Variable Analysis and compare the fitted model to the null model
-#No. significant = 8
+#No. significant = 5
 
 save(sva, file="imm_sva_rna.regressed.Rdata")
 load("imm_sva_rna.regressed.Rdata")
@@ -371,13 +439,6 @@ SV1<-sva$sv[,1]
 SV2<-sva$sv[,2]
 SV3<-sva$sv[,3]
 SV4<-sva$sv[,4]
-
-#Filter the data for cases that are AD
-pheno.AD<-pheno[which(pheno$AD==1),]
-intercept<-rownames(pheno.AD)
-dat.AD<-dat.rna[,which(colnames(dat.rna) %in% intercept)]
-save(dat.AD,file="ADOnly_rna.dat.RData")
-load("ADOnly_rna.dat.RData")
 
 #Test the model on a single site
 res<-lm(dat.AD[1,]~Immunised)
@@ -406,22 +467,27 @@ load("ImmTest_rna.RData")
 
 #Lambdas and QQ plots
 P_lambda(ImmTest$Pval)
-#0.7049467
+#1.088147
 
-png("ImmTest_rna_QQ.png")
+tiff("ImmTest__rna_QQ.tiff",units="in", width=5, height=4, res=300, compression = 'lzw')
 pQQ(ImmTest$Pval)
 dev.off()
 
 #Annotate
 library(clusterProfiler)
+library(org.Hs.eg.db)
+library(biomaRt)
+
 ImmTest$Id<-rownames(ImmTest)
 ImmTest$ENSEMBL<-gsub("\\..*","",row.names(ImmTest))
 
-gene.df <- bitr(ImmTest$ENSEMBL, fromType = "ENSEMBL",
-                toType = c("SYMBOL"),
-                OrgDb = org.Hs.eg.db)
+ensembl<-useEnsembl(biomart="ensembl", dataset="hsapiens_gene_ensembl", version = 109)
 
-ImmTest2<-merge(ImmTest,gene.df,by="ENSEMBL",all=T)
+gene.df <- getBM(attributes=c('ensembl_gene_id','hgnc_symbol'),
+                    filters = 'ensembl_gene_id', values = ImmTest$ENSEMBL, mart = ensembl)
+
+
+ImmTest2<-merge(ImmTest,gene.df,by.x="ENSEMBL",by.y="ensembl_gene_id",all=T)
 ImmTest2$Id<-make.unique(ImmTest2$Id,sep="_")
 rownames(ImmTest2)<-ImmTest2$Id
 
@@ -438,42 +504,91 @@ library(ggplot2)
 library(ggrepel)
 
 ImmTest2$Express<-"NO"
+ImmTest2$Express[ImmTest2$Pval<0.05] <-"YES"
 ImmTest2$Express[ImmTest2$Est>1&ImmTest2$Pval<0.05] <-"UP"
-ImmTest2$Express[ImmTest2$Est< -1&ImmTest2$Pval<0.05] <-"DOWN"
-ImmTest2$Express[ImmTest2$SYMBOL == "CTNNA1"] <-"CTNNA1"
-ImmTest2$Express[ImmTest2$SYMBOL == "RPH3AL"] <-"RPH3AL"
+ImmTest2$Express[ImmTest2$Est< -1 &ImmTest2$Pval<0.05] <-"DOWN"
+ImmTest2$Express[ImmTest2$hgnc_symbol == "GABRA5"] <-"Me"
+ImmTest2$Express[ImmTest2$hgnc_symbol == "VSX1"] <-"Me"
+ImmTest2$Express[ImmTest2$hgnc_symbol == "COMT"] <-"Me"
+ImmTest2$Express[ImmTest2$hgnc_symbol == "CD8A"] <-"Me"
+ImmTest2$Express[ImmTest2$hgnc_symbol == "SMG6"] <-"Me"
+ImmTest2$Express[ImmTest2$hgnc_symbol == "IQSEC1"] <-"Me"
+ImmTest2$Express[ImmTest2$hgnc_symbol == "MAFB"] <-"Me"
+ImmTest2$Express[ImmTest2$hgnc_symbol == "RNF39"] <-"Me"
+ImmTest2$Express[ImmTest2$hgnc_symbol == "CRISP2"] <-"Me"
+ImmTest2$Express[ImmTest2$hgnc_symbol == "CUGBP2"] <-"Me"
+ImmTest2$Express<-as.factor(ImmTest2$Express)
 
 sig_il_genes <- ImmTest2 %>%
-  filter(SYMBOL %in% c("VSX1",
-                       "RNF39",
-                       "SMG6",
-                       "COMT",
-                       "IQSEC1",
-                       "GABRA5",
-                       "MAFB",
+  filter(hgnc_symbol %in% c("RNF39",
                        "CRISP2",
-                       "CD8A"
+                       "GABRA5",
+                       "VSX1",
+                       "COMT",
+                       "CD8A",
+                       "MAFB",
+                       "IQSEC1",
+                       "SMG6",
+                       "CUGBP2"
   ))
-sig_il_genes2 <- ImmTest2[which(ImmTest2$Pval < 0.001 & ImmTest2$Express == "DOWN"),]
-sig_il_genes3 <- ImmTest2[which(ImmTest2$Pval < 0.01 & ImmTest2$Express == "UP"),]
+sig_il_genes2 <- ImmTest2[which(ImmTest2$Express == "UP"),]
+sig_il_genes3 <- ImmTest2[which(ImmTest2$Express == "DOWN"),]
+x <- ImmTest2[which(ImmTest2$Express == "Me"),]
+y <- ImmTest2[which(ImmTest2$Express == "YES"),]
 
 sig<-rbind(sig_il_genes,sig_il_genes2,sig_il_genes3)
 
-#CTNNA1
+#SMG6
+#IQSEC1
+#MAFB
+#CD8A
+#COMT
+#VSX1
+#GABRA5
+#CRISP2
+#RNF39
+
 #RPH3AL
 library(ggrepel)
 
-png("RNA_Volcano_2.png")
+tiff("Volcano_Imm.tiff",units="in", width=5, height=4, res=300, compression = 'lzw')
 ggplot(data=ImmTest2,aes(x=Est,y=-log10(Pval),col=Express))+
-  geom_point(show.legend = FALSE)+
-  theme_minimal()+
+  geom_point(show.legend = FALSE, alpha = 0.2)+
   geom_vline(xintercept=c(-1,1),linetype="dashed")+
   geom_hline(yintercept=-log10(0.05),linetype="dashed")+
-  xlim(-2.5, 2.5)+
-  scale_color_manual(values=c("#007d69","#69b3e7","#888b8d","#007d69","#e60000"))+
+  xlim(-2, 2)+
   xlab("log2FoldChange")+
-  geom_label_repel(data = sig,aes(label = SYMBOL),force = 2,nudge_y = 1,show.legend=FALSE)
+  geom_label_repel(data = sig,aes(label = hgnc_symbol),force = 2,nudge_y = 1,show.legend=FALSE)+
+  scale_color_manual(values=c("#e60000","#007d69","#888b8d","#e60000","#69b3e7"))+
+  theme_minimal()
+dev.off()
+
+ImmTest2$FDR<-p.adjust(ImmTest2$Pval, method = "fdr")
+FDR<-ImmTest2$FDR
+
+png("RNA_Volcano_FDR.png")
+ggplot(data=ImmTest2,aes(x=Est,y=-log10(ImmTest2$FDR),col=Express))+
+  geom_point(show.legend = FALSE, alpha = 0.2)+
+  geom_vline(xintercept=c(-1,1),linetype="dashed")+
+  geom_hline(yintercept=-log10(0.05),linetype="dashed")+
+  xlab("log2FoldChange")+
+  geom_label_repel(data = sig,aes(label = hgnc_symbol),force = 2,nudge_y = 1,show.legend=FALSE)+
+  scale_color_manual(values=c("#69b3e7","#888b8d","#e60000","black"))+
+  theme_minimal()
 dev.off()
 
 ###OUTPUT FOR CE###
-write.csv(ImmTest2,file="RNA_out.csv")
+load("ImmTest_rna.RData")
+
+RNA_out <- subset(ImmTest2, Pval < 0.05)
+FDR_out <- subset(ImmTest2, FDR < 0.05)
+
+write.csv(RNA_out,file="RNA_out.csv")
+write.csv(rnacsv,file="RNA_Top.csv")
+
+# Define the genes of interest
+genes_of_interest <- c("RNF39", "CRISP2", "GABRA5", "VSX1", "COMT", 
+                       "CD8A", "MAFB", "IQSEC1", "SMG6", "CUGBP2")
+
+# Use base R subsetting with logical conditions to filter rows
+rnacsv <- ImmTest2[ImmTest2$hgnc_symbol %in% genes_of_interest | ImmTest2$Pval < 0.05, ]
