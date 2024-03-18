@@ -1,0 +1,380 @@
+setwd("/mnt/data1/Lachlan/Infection_Immunisation/RNA/RNA_Meth")
+
+load("/mnt/data1/Lachlan/Infection_Immunisation/Imm_EWAS/Imm_EWAS/ImmTest_Manifest_1.0.RData")
+load("/mnt/data1/Lachlan/Infection_Immunisation/RNA/RNA_seq_analysis/Post_Salmon/ImmTest_rna.RData")
+
+load("/mnt/data1/Lachlan/Infection_Immunisation/Imm_EWAS/Imm_EWAS/Imm_Betas.RData")
+load("/mnt/data1/Lachlan/Infection_Immunisation/RNA/RNA_seq_analysis/Post_Salmon/norm.RData")
+load("/mnt/data1/Lachlan/Infection_Immunisation/Imm_EWAS/Imm_EWAS/Imm_dat.AD.RData")
+
+
+
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+library(tidyverse)
+
+out<-ImmTest[ImmTest$MAPINFO %in% c(25062754:25062860,2119394:2119490,19949873:19950040,13028592:13028650,27111435:27111604,39312434:39312602,87018929:87018966),]
+rna<-ImmTest2[ImmTest2$Express == "Me",]
+
+#
+VSX1 <- out %>%
+  filter(MAPINFO >= 25062754 & MAPINFO <= 25062860) %>%
+  summarise(average_Est = mean(Est, na.rm = TRUE))
+
+SMG6 <- out %>%
+  filter(MAPINFO >= 2119394 & MAPINFO <= 2119490) %>%
+  summarise(average_Est = mean(Est, na.rm = TRUE))
+
+COMT <- out %>%
+  filter(MAPINFO >= 19949873 & MAPINFO <= 19950040) %>%
+  summarise(average_Est = mean(Est, na.rm = TRUE))
+
+IQSEC <- out %>%
+  filter(MAPINFO >= 13028592 & MAPINFO <= 13028650) %>%
+  summarise(average_Est = mean(Est, na.rm = TRUE))
+
+GABRA5 <- out %>%
+  filter(MAPINFO >= 27111435 & MAPINFO <= 27111604) %>%
+  summarise(average_Est = mean(Est, na.rm = TRUE))
+
+MAFB <- out %>%
+  filter(MAPINFO >= 39312434 & MAPINFO <= 39312602) %>%
+  summarise(average_Est = mean(Est, na.rm = TRUE))
+
+CD8A <- out %>%
+  filter(MAPINFO >= 87018929 & MAPINFO <= 87018966) %>%
+  summarise(average_Est = mean(Est, na.rm = TRUE))
+
+meth<-data.frame(Est = integer(), Gene = character())
+
+num_rows <- 7
+
+meth[1:num_rows, "Est"] <- NA
+meth[1:num_rows, "Gene"] <- NA
+
+meth$Est<-c(VSX1,SMG6,COMT,IQSEC,GABRA5,MAFB,CD8A)
+meth$Gene<-c("VSX1","SMG6","COMT","IQSEC1","GABRA5","MAFB","CD8A")
+
+all <- merge(meth, rna, by.x = "Gene", by.y = "hgnc_symbol")
+all$Est.x<-as.numeric(all$Est.x)
+all$Est.y<-as.numeric(all$Est.y)
+#x = meth, y = express
+
+# Calculate Pearson correlation
+correlation_result <- cor.test(all$Est.x, all$Est.y, use = "complete.obs", method = "pearson")
+
+# Print the correlation result
+print(correlation_result)
+#[1] 0.5951441 p-value = 0.1586
+
+#betas vs express
+intercept<-rownames(out)
+betas<-betas[rownames(betas) %in% intercept,]
+
+VSX1 <- rownames(out[which(out$MAPINFO >= 25062754 & out$MAPINFO <= 25062860), ])
+
+SMG6 <- rownames(out[which(out$MAPINFO >= 2119394 & out$MAPINFO <= 2119490), ])
+
+COMT <- rownames(out[which(out$MAPINFO >= 19949873 & out$MAPINFO <= 19950040), ])
+
+IQSEC1 <- rownames(out[which(out$MAPINFO >= 13028592 & out$MAPINFO <= 13028650), ])
+
+GABRA5 <- rownames(out[which(out$MAPINFO >= 27111435 & out$MAPINFO <= 27111604), ])
+
+MAFB <- rownames(out[which(out$MAPINFO >= 39312434 & out$MAPINFO <= 39312602), ])
+
+CD8A <- rownames(out[which(out$MAPINFO >= 87018929 & out$MAPINFO <= 87018966), ])
+
+
+calculate_means <- function(genes, data) {
+  selected_rows <- data[rownames(data) %in% genes, ]
+  mean_vals <- colMeans(selected_rows, na.rm = TRUE)
+  return(mean_vals)
+}
+
+lists_of_row_names <- list(VSX1 = VSX1, SMG6 = SMG6, COMT = COMT, IQSEC1 = IQSEC1, GABRA5 = GABRA5, MAFB = MAFB, CD8A = CD8A)
+mean_values_per_list <- lapply(lists_of_row_names, calculate_means, data = betas)
+means_df <- do.call(rbind, mean_values_per_list)
+rownames(means_df) <- names(mean_values_per_list)
+
+#mean_VSX1 <- calculate_means(VSX1, betas)
+#mean_SMG6 <- calculate_means(SMG6, betas)
+#mean_COMT <- calculate_means(COMT, betas)
+#mean_IQSEC <- calculate_means(IQSEC, betas)
+#mean_GABRA5 <- calculate_means(GABRA5, betas)
+#mean_MAFB <- calculate_means(MAFB, betas)
+#mean_CD8A <- calculate_means(CD8A, betas)
+
+intercept<-rownames(rna)
+norm<-log2.cpm[rownames(log2.cpm) %in% intercept,]
+
+norm <- as.data.frame(norm[match(rownames(rna), rownames(norm)), ])
+
+norm$Gene<-as.character(rna$hgnc_symbol)
+
+means <- as.data.frame(means_df[match(norm$Gene,rownames(means_df)), ])
+
+all <- cbind(norm, means)
+
+load("/mnt/data1/Lachlan/Infection_Immunisation/Imm_EWAS/Imm_EWAS/Pheno_3.0.RData")
+intercept<-rownames(pheno.AD)
+pheno<-pheno[rownames(pheno) %in% intercept,]
+
+r<-all[,c(1:28)]
+m<-all[,c(31:58)]
+
+intercept<-rownames(pheno.AD)
+m<-m[,colnames(m) %in% intercept]
+matching_indices <- match(colnames(m), rownames(pheno))
+new_colnames <- pheno$BBN_ID[na.omit(matching_indices)]
+colnames(m) <- new_colnames
+colnames(m) <- gsub("[-_.]", "", colnames(m))
+
+intercept<-colnames(m)
+r<-r[,colnames(r) %in% intercept]
+
+#"SMG6"   "COMT"   "VSX1"   "IQSEC1" "CD8A"   "GABRA5" "MAFB"
+##
+x<-as.numeric(m[1,])
+y<-as.numeric(r[1,])
+plot(x~y)
+
+summary(lm(x~y))
+
+data<-data.frame(x=x,y=y)
+
+e<-ggplot(data,aes(x,y))
+e+geom_point(color="#fc4c02",size=2)+
+  geom_smooth(method = "lm", se = TRUE)+
+  xlab("Methylation (beta)")+
+  ylab("Expression (normalised counts)")+
+  theme_bw()
+
+pheno$ID <- gsub("[-_.]", "", pheno$BBN_ID)
+
+boxplot(x~pheno$Immunised)
+boxplot(y~pheno$Immunised)
+
+##
+x<-as.numeric(m[2,])
+y<-as.numeric(r[2,])
+plot(x~y)
+
+summary(lm(x~y))
+
+data<-data.frame(x=x,y=y)
+
+e<-ggplot(data,aes(x,y))
+e+geom_point(color="#fc4c02",size=2)+
+  geom_smooth(method = "lm", se = TRUE)+
+  xlab("Methylation (beta)")+
+  ylab("Expression (normalised counts)")+
+  theme_bw()
+
+pheno$ID <- gsub("[-_.]", "", pheno$BBN_ID)
+
+boxplot(x~pheno$Immunised)
+boxplot(y~pheno$Immunised)
+
+##
+x<-as.numeric(m[3,])
+y<-as.numeric(r[3,])
+plot(x~y)
+
+summary(lm(x~y))
+
+data<-data.frame(x=x,y=y)
+
+e<-ggplot(data,aes(x,y))
+e+geom_point(color="#fc4c02",size=2)+
+  geom_smooth(method = "lm", se = TRUE)+
+  xlab("Methylation (beta)")+
+  ylab("Expression (normalised counts)")+
+  theme_bw()
+
+pheno$ID <- gsub("[-_.]", "", pheno$BBN_ID)
+
+boxplot(x~pheno$Immunised)
+boxplot(y~pheno$Immunised)
+
+##IQSEC1
+x<-as.numeric(m[4,])
+y<-as.numeric(r[4,])
+plot(x~y)
+
+coef(summary(lm(x~y)))
+p<-coef(summary(lm(x~y)))[2,4]
+#0.03529201
+cor(x,y,method="pearson")
+c<-cor(x,y,method="pearson")
+#0.4314281
+
+data<-data.frame(x=x,y=y)
+annotation_text <- paste("Correlation: ", round(c, 4), "\nP-value: ", round(p, 4), sep = "")
+
+e<-ggplot(data,aes(x,y))
+e<-e+geom_point(color="#007d69",size=2)+
+  geom_smooth(method = "lm", se = TRUE, color = "#e60000")+
+  xlab("Methylation (beta)")+
+  ylab("Expression (cpm)")+
+  annotate("text", x = Inf, y = Inf, label = annotation_text, hjust = 5.4, vjust = 1.5, size = 3.5)+
+  theme_bw()
+
+pheno$ID <- gsub("[-_.]", "", pheno$BBN_ID)
+
+IQSEC1<-as.list(m[4,])
+pheno$IQSEC1<-unlist(IQSEC1)
+
+boxplot(x~pheno$Immunised)
+boxplot(y~pheno$Immunised)
+
+library(ggsignif)
+
+b<-ggplot(pheno, aes(x = as.factor(Immunised), y = IQSEC1, color=as.factor(Immunised), fill=as.factor(Immunised)))
+b<-b+geom_violin(alpha=0.25) +
+  scale_fill_manual(values=c("#007d69", "#00AB7E"))+
+  scale_color_manual(values=c("#007d69", "#00AB7E"))+
+  labs(x = "Immunised Status", y = "Methylation (beta)") +
+  stat_summary(fun.data=mean_sdl, geom="pointrange", color="#888b8d")+
+  stat_summary(fun.y=median, geom="point", size=2, color="#e60000")+
+  geom_jitter(shape=16, position=position_jitter(0.2))+
+  theme_bw()+
+  theme(legend.position="none")+
+  geom_signif(comparisons = list(c("0", "1")), 
+              map_signif_level = TRUE, textsize = 4)
+
+IQSEC1r<-as.list(r[4,])
+pheno$IQSEC1r<-unlist(IQSEC1r)
+
+boxplot(x~pheno$Immunised)
+boxplot(y~pheno$Immunised)
+
+library(ggsignif)
+
+br<-ggplot(pheno, aes(x = as.factor(Immunised), y = IQSEC1r, color=as.factor(Immunised), fill=as.factor(Immunised)))
+br<-b+geom_violin(alpha=0.25) +
+  scale_fill_manual(values=c("#250e62", "#69b3e7"))+
+  scale_color_manual(values=c("#250e62", "#69b3e7"))+
+  labs(x = "Immunised Status", y = "Expression (cpm)") +
+  stat_summary(fun.data=mean_sdl, geom="pointrange", color="#888b8d")+
+  stat_summary(fun.y=median, geom="point", size=2, color="#e60000")+
+  geom_jitter(shape=16, position=position_jitter(0.2))+
+  theme_bw()+
+  theme(legend.position="none")+
+  geom_signif(comparisons = list(c("0", "1")), 
+              map_signif_level = TRUE, textsize = 4)
+
+##CD8A
+x<-as.numeric(m[5,])
+y<-as.numeric(r[5,])
+plot(x~y)
+
+coef(summary(lm(x~y)))
+p<-coef(summary(lm(x~y)))[2,4]
+#4.356598e-02
+cor(x,y,method="pearson")
+c<-cor(x,y,method="pearson")
+#-0.4153206
+
+data<-data.frame(x=x,y=y)
+annotation_text <- paste("Correlation: ", round(c, 4), "\nP-value: ", round(p, 4), sep = "")
+
+k<-ggplot(data,aes(x,y))
+k<-k+geom_point(color="#007d69",size=2)+
+  geom_smooth(method = "lm", se = TRUE, color = "#e60000")+
+  xlab("Methylation (beta)")+
+  ylab("Expression (cpm)")+
+  annotate("text", x = Inf, y = Inf, label = annotation_text, hjust = 4, vjust = 1.5, size = 3.5)+
+  theme_bw()
+
+pheno$ID <- gsub("[-_.]", "", pheno$BBN_ID)
+
+CD8A<-as.list(m[4,])
+pheno$CD8A<-unlist(CD8A)
+
+boxplot(x~pheno$Immunised)
+boxplot(y~pheno$Immunised)
+
+library(ggsignif)
+
+m<-ggplot(pheno, aes(x = as.factor(Immunised), y = CD8A, color=as.factor(Immunised), fill=as.factor(Immunised)))
+m<-m+geom_violin(alpha=0.25) +
+  scale_fill_manual(values=c("#007d69", "#00AB7E"))+
+  scale_color_manual(values=c("#007d69", "#00AB7E"))+
+  labs(x = "Immunised Status", y = "Methylation (beta)") +
+  stat_summary(fun.data=mean_sdl, geom="pointrange", color="#888b8d")+
+  stat_summary(fun.y=median, geom="point", size=2, color="#e60000")+
+  geom_jitter(shape=16, position=position_jitter(0.2))+
+  theme_bw()+
+  theme(legend.position="none")+
+  geom_signif(comparisons = list(c("0", "1")), 
+              map_signif_level = TRUE, textsize = 4)
+
+CD8Ar<-as.list(r[4,])
+pheno$CD8Ar<-unlist(CD8Ar)
+
+boxplot(x~pheno$Immunised)
+boxplot(y~pheno$Immunised)
+
+library(ggsignif)
+
+mr<-ggplot(pheno, aes(x = as.factor(Immunised), y = CD8Ar, color=as.factor(Immunised), fill=as.factor(Immunised)))
+mr<-b+geom_violin(alpha=0.25) +
+  scale_fill_manual(values=c("#250e62", "#69b3e7"))+
+  scale_color_manual(values=c("#250e62", "#69b3e7"))+
+  labs(x = "Immunised Status", y = "Expression (cpm)") +
+  stat_summary(fun.data=mean_sdl, geom="pointrange", color="#888b8d")+
+  stat_summary(fun.y=median, geom="point", size=2, color="#e60000")+
+  geom_jitter(shape=16, position=position_jitter(0.2))+
+  theme_bw()+
+  theme(legend.position="none")+
+  geom_signif(comparisons = list(c("0", "1")), 
+              map_signif_level = TRUE, textsize = 4)
+
+library(cowplot)
+combined_plot <- plot_grid(e, b, br, k, m, mr, ncol = 3, align = 'v')
+ggsave("combined_plots.tiff", combined_plot, width = 16, height = 9, dpi = 300)
+
+
+##
+x<-as.numeric(m[6,])
+y<-as.numeric(r[6,])
+plot(x~y)
+
+summary(lm(x~y))
+
+data<-data.frame(x=x,y=y)
+
+e<-ggplot(data,aes(x,y))
+e+geom_point(color="#fc4c02",size=2)+
+  geom_smooth(method = "lm", se = TRUE)+
+  xlab("Methylation (beta)")+
+  ylab("Expression (normalised counts)")+
+  theme_bw()
+
+pheno$ID <- gsub("[-_.]", "", pheno$BBN_ID)
+
+boxplot(x~pheno$Immunised)
+boxplot(y~pheno$Immunised)
+
+##
+x<-as.numeric(m[7,])
+y<-as.numeric(r[7,])
+plot(x~y)
+
+summary(lm(x~y))
+
+data<-data.frame(x=x,y=y)
+
+e<-ggplot(data,aes(x,y))
+e+geom_point(color="#fc4c02",size=2)+
+  geom_smooth(method = "lm", se = TRUE)+
+  xlab("Methylation (beta)")+
+  ylab("Expression (normalised counts)")+
+  theme_bw()
+
+pheno$ID <- gsub("[-_.]", "", pheno$BBN_ID)
+
+boxplot(x~pheno$Immunised)
+boxplot(y~pheno$Immunised)
